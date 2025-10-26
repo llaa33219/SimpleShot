@@ -9,7 +9,7 @@
 sudo pacman -S flatpak flatpak-builder
 
 # GNOME Runtime 설치
-flatpak install -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
+flatpak install -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
 ```
 
 ### 2️⃣ 빌드 & 실행
@@ -58,7 +58,7 @@ flatpak run net.bloupla.simpleshot
 
 ### 기술적 특징:
 - 🔒 **안전함**: Flatpak 샌드박스, XDG Portal 사용
-- 🚀 **현대적**: GTK 4, Libadwaita, GNOME 47
+- 🚀 **현대적**: GTK 4, Libadwaita, GNOME 49
 - 📦 **배포 준비**: Flathub 제출 준비 완료
 - 🌍 **호환성**: Wayland & X11 모두 지원
 

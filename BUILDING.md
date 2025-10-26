@@ -13,8 +13,8 @@
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
 # Install GNOME runtime and SDK
-flatpak install flathub org.gnome.Platform//47
-flatpak install flathub org.gnome.Sdk//47
+flatpak install flathub org.gnome.Platform//49
+flatpak install flathub org.gnome.Sdk//49
 ```
 
 ## Build and Install

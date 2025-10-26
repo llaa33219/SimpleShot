@@ -131,7 +131,7 @@
 ### Manifest ⭐
 - [x] `net.bloupla.simpleshot.yml` 최상위 레벨에 존재
 - [x] App ID로 명명됨 (`.yml` 확장자)
-- [x] Runtime이 Flathub에 호스팅됨: `org.gnome.Platform//47`
+- [x] Runtime이 Flathub에 호스팅됨: `org.gnome.Platform//49`
 - [x] GitHub에서 소스 다운로드:
   ```yaml
   sources:

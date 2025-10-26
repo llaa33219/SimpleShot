@@ -96,7 +96,7 @@ This application is built with:
 - Python 3
 - GTK 4
 - Libadwaita 1
-- GNOME Platform 47
+- GNOME Platform 49
 
 ## License
 

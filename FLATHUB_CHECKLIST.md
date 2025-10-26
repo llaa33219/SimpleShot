@@ -15,8 +15,8 @@
 - [x] `net.bloupla.simpleshot.yml` 존재 (Flathub 제출용)
 - [x] `net.bloupla.simpleshot.local.yml` 존재 (로컬 개발용)
 - [x] GitHub에서 소스 다운로드하도록 설정됨
-- [x] Runtime은 Flathub에서 호스팅됨 (org.gnome.Platform//47)
-- [x] 최신 런타임 버전 사용 (GNOME 47)
+- [x] Runtime은 Flathub에서 호스팅됨 (org.gnome.Platform//49)
+- [x] 최신 런타임 버전 사용 (GNOME 49)
 
 ### Metadata (업스트림 프로젝트에 통합)
 - [x] `net.bloupla.simpleshot.metainfo.xml` 존재

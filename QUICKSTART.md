@@ -14,7 +14,7 @@ sudo pacman -S flatpak flatpak-builder
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 
 # GNOME Runtime 설치
-flatpak install -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
+flatpak install -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
 ```
 
 ### 2단계: 빌드

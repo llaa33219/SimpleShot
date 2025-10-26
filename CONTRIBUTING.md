@@ -6,7 +6,7 @@ Thank you for your interest in contributing to SimpleShot!
 
 1. Clone the repository
 2. Install Flatpak and Flatpak Builder
-3. Install GNOME Platform runtime (version 47)
+3. Install GNOME Platform runtime (version 49)
 4. Build the application (see BUILDING.md)
 
 ## Code Style

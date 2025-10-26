@@ -13,9 +13,9 @@ if ! command -v flatpak-builder &> /dev/null; then
 fi
 
 # Check if GNOME runtime is installed
-if ! flatpak list | grep -q "org.gnome.Platform.*47"; then
-    echo "Installing GNOME Platform 47..."
-    flatpak install -y flathub org.gnome.Platform//47 org.gnome.Sdk//47
+if ! flatpak list | grep -q "org.gnome.Platform.*49"; then
+    echo "Installing GNOME Platform 49..."
+    flatpak install -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
 fi
 
 # Clean previous build

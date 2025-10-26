@@ -105,7 +105,7 @@ SVG 벡터 아이콘:
 
 - **언어**: Python 3
 - **GUI**: GTK 4, Libadwaita 1
-- **Runtime**: GNOME Platform 47
+- **Runtime**: GNOME Platform 49
 - **패키징**: Flatpak
 - **보안**: XDG Portals (screenshot, screencast)
 - **그래픽**: Cairo (drawing)

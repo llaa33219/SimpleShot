@@ -7,7 +7,7 @@
 ### 핵심 정보
 - **App ID**: `net.bloupla.simpleshot`
 - **라이선스**: MIT License
-- **플랫폼**: Flatpak (GNOME Platform 47)
+- **플랫폼**: Flatpak (GNOME Platform 49)
 - **언어**: Python 3 + GTK 4 + Libadwaita 1
 - **상태**: 개발 완료, Flathub 제출 준비 중
 
@@ -69,7 +69,7 @@ SimpleShot/
 
 ### 패키징
 - **Flatpak**: 앱 패키징 및 샌드박싱
-- **GNOME Platform 47**: 런타임 환경
+- **GNOME Platform 49**: 런타임 환경
 
 ### 외부 도구 (Fallback)
 - **grim** (Wayland): 스크린샷
@@ -190,7 +190,7 @@ finish-args:
 - 설정 자동 저장
 
 ### `net.bloupla.simpleshot.yml` (Manifest)
-- GNOME Platform 47 사용
+- GNOME Platform 49 사용
 - 최소 권한 설정
 - 단순한 빌드 프로세스
 
@@ -208,7 +208,7 @@ finish-args:
 
 ## 🌟 특별한 점
 
-1. **현대적 기술 스택**: GTK 4, Libadwaita 1, GNOME 47
+1. **현대적 기술 스택**: GTK 4, Libadwaita 1, GNOME 49
 2. **보안 우선**: Portal 기반, 최소 권한
 3. **완전한 문서화**: 7개의 상세 문서
 4. **Flathub 준비**: 모든 요구사항 충족
