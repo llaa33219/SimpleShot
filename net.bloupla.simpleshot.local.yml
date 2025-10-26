@@ -24,7 +24,7 @@ modules:
       - install -Dm755 simpleshot.py ${FLATPAK_DEST}/bin/simpleshot
       - install -Dm644 net.bloupla.simpleshot.desktop ${FLATPAK_DEST}/share/applications/net.bloupla.simpleshot.desktop
       - install -Dm644 net.bloupla.simpleshot.metainfo.xml ${FLATPAK_DEST}/share/metainfo/net.bloupla.simpleshot.metainfo.xml
-      - install -Dm644 icons/net.bloupla.simpleshot.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/net.bloupla.simpleshot.svg
+      - install -Dm644 net.bloupla.simpleshot.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/net.bloupla.simpleshot.svg
     sources:
       - type: file
         path: simpleshot.py
@@ -32,6 +32,7 @@ modules:
         path: net.bloupla.simpleshot.desktop
       - type: file
         path: net.bloupla.simpleshot.metainfo.xml
-      - type: dir
-        path: icons
+      - type: file
+        path: icons/net.bloupla.simpleshot.svg
+        dest-filename: net.bloupla.simpleshot.svg
 
