@@ -4,6 +4,9 @@ build-dir/
 repo/
 *.flatpak
 
+# Note: Build directory is now in /tmp/simpleshot-build to avoid
+# GoogleDrive symlink issues
+
 # Python cache
 __pycache__/
 *.pyc

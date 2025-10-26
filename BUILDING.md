@@ -22,14 +22,18 @@ flatpak install flathub org.gnome.Sdk//49
 ### Build the Flatpak (Local Development)
 
 ```bash
-# From the project root directory
+# Quick build (recommended)
+./build.sh
+
+# Manual build
 # Use the local manifest for development
-flatpak-builder --user --install --force-clean build-dir net.bloupla.simpleshot.local.yml
+flatpak-builder --user --install --force-clean /tmp/simpleshot-build net.bloupla.simpleshot.local.yml
 ```
 
-**Note**: 
+**Important Notes**: 
 - `net.bloupla.simpleshot.local.yml` - 로컬 개발용 (로컬 파일 사용)
 - `net.bloupla.simpleshot.yml` - Flathub 제출용 (GitHub에서 소스 다운로드)
+- **빌드 디렉토리**: `/tmp/simpleshot-build` 사용 (GoogleDrive는 심볼릭 링크 미지원)
 
 ### Run the Application
 
@@ -113,7 +117,9 @@ Expected permissions:
 Remove the build:
 
 ```bash
-rm -rf build-dir .flatpak-builder
+# Build directory is in /tmp, so it will be automatically cleaned on reboot
+# Manual cleanup if needed:
+rm -rf /tmp/simpleshot-build
 ```
 
 Uninstall:

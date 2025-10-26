@@ -130,6 +130,9 @@ This application follows Flathub requirements:
 - **[FLATHUB_SUBMISSION_GUIDE.md](FLATHUB_SUBMISSION_GUIDE.md)** - 단계별 제출 가이드
 - **[FLATHUB_CHECKLIST.md](FLATHUB_CHECKLIST.md)** - 간단한 체크리스트
 
+### 문제 해결
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - 일반적인 문제 해결 가이드
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.

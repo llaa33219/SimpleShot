@@ -18,15 +18,19 @@ if ! flatpak list | grep -q "org.gnome.Platform.*49"; then
     flatpak install -y flathub org.gnome.Platform//49 org.gnome.Sdk//49
 fi
 
+# Use temp directory for build (GoogleDrive doesn't support symlinks)
+BUILD_DIR="/tmp/simpleshot-build"
+
 # Clean previous build
-if [ -d "build-dir" ]; then
+if [ -d "$BUILD_DIR" ]; then
     echo "Cleaning previous build..."
-    rm -rf build-dir
+    rm -rf "$BUILD_DIR"
 fi
 
 # Build
 echo "Building Flatpak..."
-flatpak-builder --user --install --force-clean build-dir net.bloupla.simpleshot.local.yml
+echo "Build directory: $BUILD_DIR"
+flatpak-builder --user --install --force-clean "$BUILD_DIR" net.bloupla.simpleshot.local.yml
 
 echo ""
 echo "=== Build Complete ==="
