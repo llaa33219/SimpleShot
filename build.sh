@@ -20,6 +20,7 @@ fi
 
 # Use temp directory for build (GoogleDrive doesn't support symlinks)
 BUILD_DIR="/tmp/simpleshot-build"
+STATE_DIR="/tmp/simpleshot-flatpak-builder"
 
 # Clean previous build
 if [ -d "$BUILD_DIR" ]; then
@@ -27,10 +28,15 @@ if [ -d "$BUILD_DIR" ]; then
     rm -rf "$BUILD_DIR"
 fi
 
+if [ -d "$STATE_DIR" ]; then
+    rm -rf "$STATE_DIR"
+fi
+
 # Build
 echo "Building Flatpak..."
 echo "Build directory: $BUILD_DIR"
-flatpak-builder --user --install --force-clean "$BUILD_DIR" net.bloupla.simpleshot.local.yml
+echo "State directory: $STATE_DIR"
+flatpak-builder --user --install --force-clean --state-dir="$STATE_DIR" "$BUILD_DIR" net.bloupla.simpleshot.local.yml
 
 echo ""
 echo "=== Build Complete ==="

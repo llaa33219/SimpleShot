@@ -27,7 +27,10 @@ flatpak install flathub org.gnome.Sdk//49
 
 # Manual build
 # Use the local manifest for development
-flatpak-builder --user --install --force-clean /tmp/simpleshot-build net.bloupla.simpleshot.local.yml
+flatpak-builder --user --install --force-clean \
+  --state-dir=/tmp/simpleshot-flatpak-builder \
+  /tmp/simpleshot-build \
+  net.bloupla.simpleshot.local.yml
 ```
 
 **Important Notes**: 
@@ -117,9 +120,9 @@ Expected permissions:
 Remove the build:
 
 ```bash
-# Build directory is in /tmp, so it will be automatically cleaned on reboot
+# Build directories are in /tmp, so they will be automatically cleaned on reboot
 # Manual cleanup if needed:
-rm -rf /tmp/simpleshot-build
+rm -rf /tmp/simpleshot-build /tmp/simpleshot-flatpak-builder
 ```
 
 Uninstall:

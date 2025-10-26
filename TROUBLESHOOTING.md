@@ -19,7 +19,10 @@ error: Error making symbolic link /path/to/build-dir/var/run: Input/output error
 ./build.sh
 
 # 수동 해결: 로컬 파일시스템에 빌드
-flatpak-builder --user --install --force-clean /tmp/simpleshot-build net.bloupla.simpleshot.local.yml
+flatpak-builder --user --install --force-clean \
+  --state-dir=/tmp/simpleshot-flatpak-builder \
+  /tmp/simpleshot-build \
+  net.bloupla.simpleshot.local.yml
 ```
 
 ### ❌ "Runtime not found" 오류
@@ -217,7 +220,7 @@ A: 직접 빌드는 불가능합니다. `./build.sh`를 사용하면 자동으�
 A: `/tmp`는 로컬 파일시스템이므로 심볼릭 링크를 지원하며, 재부팅 시 자동 정리됩니다.
 
 **Q: 빌드 파일이 너무 큰데요?**
-A: `/tmp`는 재부팅 시 자동 정리됩니다. 수동 정리: `rm -rf /tmp/simpleshot-build`
+A: `/tmp`는 재부팅 시 자동 정리됩니다. 수동 정리: `rm -rf /tmp/simpleshot-build /tmp/simpleshot-flatpak-builder`
 
 **Q: GNOME 49가 설치되지 않아요**
 A: Flathub 저장소 확인: `flatpak remote-list` 후 `flatpak update`
