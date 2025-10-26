@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=SimpleShot
+Comment=Simple screen capture and recording tool
+Icon=net.bloupla.simpleshot
+Exec=simpleshot
+Terminal=false
+Categories=Graphics;Utility;
+Keywords=screenshot;screen;capture;record;recording;
+

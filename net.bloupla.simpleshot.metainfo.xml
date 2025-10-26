@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.bloupla.simpleshot</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>SimpleShot</name>
+  <summary>Simple screen capture and recording tool</summary>
+  <description>
+    <p>
+      SimpleShot is a lightweight and easy-to-use screen capture and recording application.
+      It allows you to quickly capture screenshots or record screen videos with a simple interface.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Area selection with mouse drag</li>
+      <li>Screenshot capture with automatic clipboard copy</li>
+      <li>Screen recording with visual feedback</li>
+      <li>Configurable save locations for images and videos</li>
+      <li>Simple and intuitive interface</li>
+    </ul>
+  </description>
+  
+  <launchable type="desktop-id">net.bloupla.simpleshot.desktop</launchable>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>SimpleShot main window</caption>
+    </screenshot>
+  </screenshots>
+  
+  <url type="homepage">https://github.com/llaa33219/SimpleShot</url>
+  <url type="bugtracker">https://github.com/llaa33219/SimpleShot/issues</url>
+  <url type="vcs-browser">https://github.com/llaa33219/SimpleShot</url>
+  <url type="contribute">https://github.com/llaa33219/SimpleShot/blob/main/CONTRIBUTING.md</url>
+  
+  <developer id="net.bloupla">
+    <name>Bloupla</name>
+  </developer>
+  
+  <content_rating type="oars-1.1" />
+  
+  <releases>
+    <release version="1.0.0" date="2025-10-25">
+      <description>
+        <p>Initial release</p>
+        <ul>
+          <li>Screenshot capture functionality</li>
+          <li>Screen recording functionality</li>
+          <li>Area selection interface</li>
+          <li>Configurable save locations</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>
+

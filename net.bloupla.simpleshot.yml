@@ -1,0 +1,33 @@
+app-id: net.bloupla.simpleshot
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: simpleshot
+
+finish-args:
+  # Wayland support
+  - --socket=wayland
+  # X11 fallback
+  - --socket=fallback-x11
+  # GPU acceleration
+  - --device=dri
+  # Screen recording and screenshot via portals
+  - --talk-name=org.freedesktop.portal.Desktop
+  # File chooser portal for save location
+  - --filesystem=xdg-pictures:create
+  - --filesystem=xdg-videos:create
+
+modules:
+  - name: simpleshot
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 simpleshot.py ${FLATPAK_DEST}/bin/simpleshot
+      - install -Dm644 net.bloupla.simpleshot.desktop ${FLATPAK_DEST}/share/applications/net.bloupla.simpleshot.desktop
+      - install -Dm644 net.bloupla.simpleshot.metainfo.xml ${FLATPAK_DEST}/share/metainfo/net.bloupla.simpleshot.metainfo.xml
+      - install -Dm644 icons/net.bloupla.simpleshot.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/net.bloupla.simpleshot.svg
+    sources:
+      - type: git
+        url: https://github.com/llaa33219/SimpleShot.git
+        tag: v1.0.0
+        commit: COMMIT_HASH_HERE  # Update this with actual commit hash after first release
+
