@@ -169,17 +169,18 @@ class SettingsWindow(Adw.ApplicationWindow):
     
     def on_start_capture(self, button):
         """Start the capture selection interface"""
-        self.hide()
         self.get_application().start_capture_session(self)
+        self.set_visible(False)
 
 
 class SelectionWindow(Gtk.Window):
     """Fullscreen overlay for area selection"""
     
-    def __init__(self, app, config, manager):
+    def __init__(self, app, config, manager, monitor):
         super().__init__(application=app)
         self.config = config
         self.manager = manager
+        self.monitor = monitor
         
         # Window setup
         self.set_decorated(False)
@@ -397,7 +398,7 @@ class SelectionWindow(Gtk.Window):
         if w < 10 or h < 10:
             return
         
-        self.hide()
+        self.manager.hide_all_selection_windows()
 
         try:
             # Use XDG Screenshot Portal
@@ -458,9 +459,11 @@ class SelectionWindow(Gtk.Window):
             if uri_variant:
                 uri = uri_variant.get_string().replace('file://', '')
                 
+                monitor_geometry = self.monitor.get_geometry()
+                
                 # Crop the full screenshot
-                x = int(min(self.start_x, self.end_x))
-                y = int(min(self.start_y, self.end_y))
+                x = int(min(self.start_x, self.end_x)) + monitor_geometry.x
+                y = int(min(self.start_y, self.end_y)) + monitor_geometry.y
                 w = int(abs(self.end_x - self.start_x))
                 h = int(abs(self.end_y - self.start_y))
                 
@@ -525,6 +528,8 @@ class SelectionWindow(Gtk.Window):
         
         if w < 10 or h < 10:
             return
+            
+        self.manager.hide_all_selection_windows()
         
         try:
             # Create output directory
@@ -600,10 +605,15 @@ class SimpleShotApp(Adw.Application):
         
         for i in range(monitors.get_n_items()):
             monitor = monitors.get_item(i)
-            win = SelectionWindow(self, self.config, self)
+            win = SelectionWindow(self, self.config, self, monitor)
             win.fullscreen_on_monitor(monitor)
             win.present()
             self.selection_windows.append(win)
+
+    def hide_all_selection_windows(self):
+        """Hide all selection windows"""
+        for win in self.selection_windows:
+            win.set_visible(False)
 
     def end_capture_session(self):
         """Close all selection windows and show the main window"""
