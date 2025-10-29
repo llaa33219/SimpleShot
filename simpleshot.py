@@ -632,7 +632,7 @@ class SimpleShotApp(Adw.Application):
         results = params.get_child_value(1)
         
         if response_code == 0:
-            self.session_handle = results['session_handle'].get_string()
+            self.session_handle = results['session_handle']
             
             options = {'handle_token': GLib.Variant('s', 'req' + str(GLib.random_int()))}
             self.portal.call(
