@@ -171,14 +171,14 @@ class SettingsWindow(Adw.ApplicationWindow):
     
     def on_start_capture(self, button):
         """Start the capture selection interface"""
-        self.get_application().start_capture_session(self)
+        self.get_application().start_screencast_for_capture(self)
         self.set_visible(False)
 
 
 class SelectionWindow(Gtk.Window):
     """Fullscreen overlay for area selection"""
     
-    def __init__(self, app, config, manager, monitor, desktop_x_offset=0, desktop_y_offset=0):
+    def __init__(self, app, config, manager, monitor, desktop_x_offset=0, desktop_y_offset=0, background_texture=None):
         super().__init__(application=app)
         self.config = config
         self.manager = manager
@@ -202,11 +202,7 @@ class SelectionWindow(Gtk.Window):
         self.end_y = 0
         self.is_selecting = False
         self.is_recording = False
-        self.portal = None
-        self.session_handle = None
-        self.request_proxy = None
-        self.pipeline = None
-        self.background_texture = None
+        self.background_texture = background_texture
         self.captured_sample = None
         
         # Drawing area
@@ -401,200 +397,9 @@ class SelectionWindow(Gtk.Window):
             return True
         return False
     
-    def take_screenshot(self):
-        """Take a screenshot of selected area using XDG ScreenCast Portal"""
-        self.manager.hide_all_selection_windows()
-
+    def process_captured_frame(self, sample):
         try:
-            # Use XDG ScreenCast Portal
-            self.portal = Gio.DBusProxy.new_for_bus_sync(
-                Gio.BusType.SESSION,
-                Gio.DBusProxyFlags.NONE,
-                None,
-                'org.freedesktop.portal.Desktop',
-                '/org/freedesktop/portal/desktop',
-                'org.freedesktop.portal.ScreenCast',
-                None
-            )
-            
-            options = {
-                'handle_token': GLib.Variant('s', 'req' + str(GLib.random_int())),
-                'session_handle_token': GLib.Variant('s', 'session' + str(GLib.random_int())),
-                'types': GLib.Variant('u', 1) # Monitor only
-            }
-            
-            self.portal.call(
-                'CreateSession',
-                GLib.Variant('(a{sv})', (options,)),
-                Gio.DBusCallFlags.NONE,
-                -1,
-                None,
-                self.on_request_proxy_created,
-                "SelectSources"
-            )
-            
-        except Exception as e:
-            print(f"Error creating ScreenCast session: {e}")
-            self.manager.end_capture_session()
-
-    def on_request_proxy_created(self, proxy, result, next_step):
-        try:
-            res = proxy.call_finish(result)
-            request_handle = res.get_child_value(0).get_string()
-            
-            self.request_proxy = Gio.DBusProxy.new_for_bus_sync(
-                Gio.BusType.SESSION,
-                Gio.DBusProxyFlags.NONE,
-                None,
-                'org.freedesktop.portal.Desktop',
-                request_handle,
-                'org.freedesktop.portal.Request',
-                None
-            )
-            
-            if next_step == "SelectSources":
-                self.request_proxy.connect("g-signal", self.on_create_session_response)
-            elif next_step == "Start":
-                self.request_proxy.connect("g-signal", self.on_select_sources_response)
-
-        except Exception as e:
-            print(f"Error creating request proxy: {e}")
-            self.manager.end_capture_session()
-            
-    def on_create_session_response(self, proxy, sender, signal, params):
-        if signal != "Response":
-            return
-            
-        response_code = params.get_child_value(0).get_uint32()
-        results = params.get_child_value(1)
-        
-        if response_code == 0:
-            self.session_handle = results['session_handle'].get_string()
-            
-            # Now call SelectSources
-            options = {'handle_token': GLib.Variant('s', 'req' + str(GLib.random_int()))}
-            self.portal.call(
-                'SelectSources',
-                GLib.Variant('(oa{sv})', (self.session_handle, options)),
-                Gio.DBusCallFlags.NONE, -1, None,
-                self.on_request_proxy_created,
-                "Start"
-            )
-        else:
-            print("Failed to create screencast session.")
-            self.manager.end_capture_session()
-
-    def on_select_sources_response(self, proxy, sender, signal, params):
-        if signal != "Response":
-            return
-            
-        response_code = params.get_child_value(0).get_uint32()
-        if response_code == 0:
-            print("Sources selected, starting screencast.")
-            session_proxy = Gio.DBusProxy.new_for_bus_sync(
-                Gio.BusType.SESSION,
-                Gio.DBusProxyFlags.NONE, None,
-                'org.freedesktop.portal.Desktop',
-                self.session_handle,
-                'org.freedesktop.portal.Session',
-                None
-            )
-            session_proxy.connect("g-signal", self.on_screencast_signal)
-
-            options = {}
-            self.portal.call(
-                'Start',
-                GLib.Variant('(oa{sv})', (self.session_handle, options)),
-                Gio.DBusCallFlags.NONE, -1, None,
-                None, None # No response expected for Start
-            )
-        else:
-            print("Failed to select sources.")
-            self.manager.end_capture_session()
-
-    def on_screencast_session_created(self, proxy, result, user_data):
-        try:
-            res = proxy.call_finish(result)
-            if not res:
-                self.manager.end_capture_session()
-                return
-
-            session_handle = res.get_child_value(0).get_string()
-            
-            # Connect to the Start signal
-            self.portal.connect("g-signal", self.on_screencast_signal)
-
-            options = {
-                'handle_token': GLib.Variant('s', 'simpleshot' + str(GLib.random_int())),
-            }
-
-            self.portal.call(
-                'SelectSources',
-                GLib.Variant('(oa{sv})', (session_handle, options)),
-                Gio.DBusCallFlags.NONE, -1, None,
-                self.on_screencast_sources_selected,
-                session_handle
-            )
-        except Exception as e:
-            print(f"Error in screencast session: {e}")
-            self.manager.end_capture_session()
-
-    def on_screencast_signal(self, proxy, sender, signal, params):
-        if signal != 'Start':
-            return
-        
-        # The session proxy is the sender, not the main portal proxy
-        session_handle_from_signal = proxy.get_object_path()
-        if session_handle_from_signal != self.session_handle:
-             return
-
-        streams = params.get_child_value(0)
-        for stream in streams:
-             node_id = stream['id'].get_uint32()
-             print(f"Received Start signal! PipeWire node ID: {node_id}")
-             self.start_gstreamer_pipeline(node_id)
-             break # Use the first stream
-
-    def start_gstreamer_pipeline(self, node_id):
-        Gst.init(None)
-        
-        pipeline_str = (
-            f"pipewiresrc path={node_id} ! "
-            "videoconvert ! "
-            "appsink name=sink emit-signals=true"
-        )
-        
-        self.pipeline = Gst.parse_launch(pipeline_str)
-        appsink = self.pipeline.get_by_name("sink")
-        appsink.connect("new-sample", self.on_new_sample)
-        
-        self.pipeline.set_state(Gst.State.PLAYING)
-        print("GStreamer pipeline started.")
-
-    def on_new_sample(self, appsink):
-        print("Captured a frame from GStreamer!")
-        
-        sample = appsink.pull_sample()
-        if not sample:
-            return Gst.FlowReturn.OK
-
-        # Stop the pipeline, we only need one frame
-        self.pipeline.set_state(Gst.State.NULL)
-
-        # Process the frame
-        self.setup_background_from_sample(sample)
-
-        # After processing, close the session
-        # No, do this after saving the file.
-        # if self.session_handle:
-        #     self.close_screencast_session(self.session_handle)
-
-        return Gst.FlowReturn.EOS
-
-    def setup_background_from_sample(self, sample):
-        try:
-            self.captured_sample = sample # Store the sample
-
+            # Re-get texture from sample, as the background might not be a full pixbuf
             caps = sample.get_caps()
             struct = caps.get_structure(0)
             width = struct.get_value("width")
@@ -606,66 +411,25 @@ class SelectionWindow(Gtk.Window):
                 raise Exception("Failed to map GStreamer buffer")
 
             video_info = GstVideo.VideoInfo.new_from_caps(caps)
-            
-            # Create a texture from the buffer
-            self.background_texture = Gdk.GLTexture.new(
-                self.get_display().get_gl_context(),
-                GstVideo.VideoGLTextureUpload.run(video_info, map_info.data, plane=0)
-            )
+            stride = GstVideo.VideoFrame(buf, video_info).get_plane_stride(0)
 
-            if self.background_texture is None:
-                # Fallback for systems without OpenGL
-                pixbuf_full = GdkPixbuf.Pixbuf.new_from_data(
-                    map_info.data, GdkPixbuf.Colorspace.RGB,
-                    False, 8, width, height, 
-                    GstVideo.VideoFrame(buf, video_info).get_plane_stride(0)
-                )
-                self.background_texture = Gdk.Texture.new_for_pixbuf(pixbuf_full)
-
-            buf.unmap(map_info)
-            
-            # Show the selection windows again
-            self.manager.reshow_selection_windows()
-            
-        except Exception as e:
-            print(f"Error setting up background: {e}")
-            self.manager.end_capture_session()
-
-
-    def process_captured_frame(self, sample):
-        try:
-            caps = sample.get_caps()
-            struct = caps.get_structure(0)
-            
-            width = struct.get_value("width")
-            height = struct.get_value("height")
-            
-            buf = sample.get_buffer()
-            
-            # Map buffer to memory
-            success, map_info = buf.map(Gst.MapFlags.READ)
-            if not success:
-                raise Exception("Failed to map GStreamer buffer")
-            
-            # Create Pixbuf from buffer data
             pixbuf_full = GdkPixbuf.Pixbuf.new_from_data(
-                map_info.data, 
-                GdkPixbuf.Colorspace.RGB,
-                False, 8, width, height, 
-                struct.get_value("framerate").get_num() * width * 3 # stride
+                map_info.data, GdkPixbuf.Colorspace.RGB,
+                False, 8, width, height, stride
             )
-            
-            # Unmap buffer
             buf.unmap(map_info)
 
             # Now, crop the pixbuf
             scale = self.monitor.get_scale_factor()
-            x = int(min(self.start_x, self.end_x)) * scale
-            y = int(min(self.start_y, self.end_y)) * scale
-            w = int(abs(self.end_x - self.start_x)) * scale
-            h = int(abs(self.end_y - self.start_y)) * scale
+            x = int(min(self.start_x, self.end_x)) 
+            y = int(min(self.start_y, self.end_y))
+            w = int(abs(self.end_x - self.start_x))
+            h = int(abs(self.end_y - self.start_y))
 
-            cropped_pixbuf = pixbuf_full.new_subpixbuf(x, y, w, h)
+            # The coordinates are relative to the window, which is on a specific monitor.
+            # The pixbuf is the content of that monitor. So direct cropping is fine.
+            # Scale factor must be applied to the selection rectangle dimensions.
+            cropped_pixbuf = pixbuf_full.new_subpixbuf(x * scale, y * scale, w * scale, h * scale)
             
             # Save the cropped image
             Path(self.config.picture_dir).mkdir(parents=True, exist_ok=True)
@@ -682,41 +446,9 @@ class SelectionWindow(Gtk.Window):
             print(f"Error processing captured frame: {e}")
             self.show_notification("Error processing screenshot.")
         finally:
-            if self.session_handle:
-                self.close_screencast_session(self.session_handle)
-            # Session is now closed in on_new_sample after processing
+            if hasattr(self.manager, 'session_handle') and self.manager.session_handle:
+                self.manager.close_screencast_session(self.manager.session_handle)
             self.manager.end_capture_session()
-
-
-    def on_screencast_sources_selected(self, proxy, result, session_handle):
-        # This is where we would start the stream and capture a frame.
-        # For now, let's just log and end the session.
-        try:
-            res = proxy.call_finish(result)
-            if not res:
-                self.manager.end_capture_session()
-                return
-            
-            print("Screencast sources selected, waiting for Start signal.")
-
-            # No need to close the session here anymore, it will be closed after capture
-            # self.close_screencast_session(session_handle)
-
-        except Exception as e:
-            print(f"Error selecting screencast sources: {e}")
-            self.manager.end_capture_session()
-
-    def close_screencast_session(self, session_handle):
-        # Session handle is an object path, need to close it via the request object
-        session_proxy = Gio.DBusProxy.new_for_bus_sync(
-            Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, None,
-            'org.freedesktop.portal.Desktop',
-            session_handle,
-            'org.freedesktop.portal.Session',
-            None
-        )
-        session_proxy.call('Close', GLib.Variant('()', None), Gio.DBusCallFlags.NONE, -1, None, None, None)
-        # self.manager.end_capture_session() is called elsewhere
 
     def copy_to_clipboard(self, filepath):
         """Copy image to clipboard"""
@@ -822,6 +554,10 @@ class SimpleShotApp(Adw.Application):
         self.config = SimpleShotConfig()
         self.selection_windows = []
         self.settings_window = None
+        self.portal = None
+        self.session_handle = None
+        self.request_proxy = None
+        self.pipeline = None
     
     def do_activate(self):
         """Application activation"""
@@ -829,7 +565,175 @@ class SimpleShotApp(Adw.Application):
             self.settings_window = SettingsWindow(self, self.config)
         self.settings_window.present()
 
-    def start_capture_session(self, settings_win):
+    def start_screencast_for_capture(self, parent_window):
+        """Start the screencast portal process to capture a frame."""
+        self.settings_window = parent_window
+        self.settings_window.set_visible(False)
+        
+        try:
+            self.portal = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SESSION,
+                Gio.DBusProxyFlags.NONE,
+                None,
+                'org.freedesktop.portal.Desktop',
+                '/org/freedesktop/portal/desktop',
+                'org.freedesktop.portal.ScreenCast',
+                None
+            )
+            
+            options = {
+                'handle_token': GLib.Variant('s', 'req' + str(GLib.random_int())),
+                'session_handle_token': GLib.Variant('s', 'session' + str(GLib.random_int())),
+                'types': GLib.Variant('u', 1)  # Monitor only
+            }
+            
+            self.portal.call(
+                'CreateSession',
+                GLib.Variant('(a{sv})', (options,)),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+                self.on_request_proxy_created,
+                "SelectSources"
+            )
+        except Exception as e:
+            print(f"Error creating ScreenCast session: {e}")
+            self.end_capture_session()
+
+    def on_request_proxy_created(self, proxy, result, next_step):
+        try:
+            res = proxy.call_finish(result)
+            request_handle = res.get_child_value(0).get_string()
+            
+            self.request_proxy = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SESSION,
+                Gio.DBusProxyFlags.NONE,
+                None,
+                'org.freedesktop.portal.Desktop',
+                request_handle,
+                'org.freedesktop.portal.Request',
+                None
+            )
+            
+            if next_step == "SelectSources":
+                self.request_proxy.connect("g-signal", self.on_create_session_response)
+            elif next_step == "Start":
+                self.request_proxy.connect("g-signal", self.on_select_sources_response)
+
+        except Exception as e:
+            print(f"Error creating request proxy: {e}")
+            self.end_capture_session()
+            
+    def on_create_session_response(self, proxy, sender, signal, params):
+        if signal != "Response":
+            return
+            
+        response_code = params.get_child_value(0).get_uint32()
+        results = params.get_child_value(1)
+        
+        if response_code == 0:
+            self.session_handle = results['session_handle'].get_string()
+            
+            options = {'handle_token': GLib.Variant('s', 'req' + str(GLib.random_int()))}
+            self.portal.call(
+                'SelectSources',
+                GLib.Variant('(oa{sv})', (self.session_handle, options)),
+                Gio.DBusCallFlags.NONE, -1, None,
+                self.on_request_proxy_created,
+                "Start"
+            )
+        else:
+            print("Failed to create screencast session.")
+            self.end_capture_session()
+
+    def on_select_sources_response(self, proxy, sender, signal, params):
+        if signal != "Response":
+            return
+            
+        response_code = params.get_child_value(0).get_uint32()
+        if response_code == 0:
+            session_proxy = Gio.DBusProxy.new_for_bus_sync(
+                Gio.BusType.SESSION,
+                Gio.DBusProxyFlags.NONE, None,
+                'org.freedesktop.portal.Desktop',
+                self.session_handle,
+                'org.freedesktop.portal.Session',
+                None
+            )
+            session_proxy.connect("g-signal", self.on_screencast_signal)
+
+            options = {}
+            self.portal.call(
+                'Start',
+                GLib.Variant('(oa{sv})', (self.session_handle, options)),
+                Gio.DBusCallFlags.NONE, -1, None,
+                None, None
+            )
+        else:
+            print("Failed to select sources.")
+            self.end_capture_session()
+
+    def on_screencast_signal(self, proxy, sender, signal, params):
+        if signal != 'StreamsChanged': # Use StreamsChanged instead of Start
+            return
+        
+        streams = params.get_child_value(0)
+        for stream in streams:
+            node_id = stream['id'].get_uint32()
+            self.start_gstreamer_pipeline(node_id)
+            break
+
+    def start_gstreamer_pipeline(self, node_id):
+        Gst.init(None)
+        pipeline_str = (
+            f"pipewiresrc path={node_id} ! "
+            "videoconvert ! video/x-raw,format=RGB ! "
+            "appsink name=sink emit-signals=true"
+        )
+        self.pipeline = Gst.parse_launch(pipeline_str)
+        appsink = self.pipeline.get_by_name("sink")
+        appsink.connect("new-sample", self.on_new_sample)
+        self.pipeline.set_state(Gst.State.PLAYING)
+
+    def on_new_sample(self, appsink):
+        sample = appsink.pull_sample()
+        if not sample:
+            return Gst.FlowReturn.OK
+
+        self.pipeline.set_state(Gst.State.NULL)
+        
+        try:
+            # Create texture from the sample
+            caps = sample.get_caps()
+            struct = caps.get_structure(0)
+            width = struct.get_value("width")
+            height = struct.get_value("height")
+            
+            buf = sample.get_buffer()
+            success, map_info = buf.map(Gst.MapFlags.READ)
+            if not success:
+                raise Exception("Failed to map GStreamer buffer")
+
+            video_info = GstVideo.VideoInfo.new_from_caps(caps)
+            stride = GstVideo.VideoFrame(buf, video_info).get_plane_stride(0)
+
+            pixbuf = GdkPixbuf.Pixbuf.new_from_data(
+                map_info.data, GdkPixbuf.Colorspace.RGB,
+                False, 8, width, height, stride
+            )
+            texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+            buf.unmap(map_info)
+            
+            # Now that we have the texture, create and show the selection windows
+            self.start_capture_session(self.settings_window, texture, sample)
+
+        except Exception as e:
+            print(f"Error processing GStreamer sample: {e}")
+            self.end_capture_session()
+
+        return Gst.FlowReturn.EOS
+        
+    def start_capture_session(self, settings_win, background_texture=None, captured_sample=None):
         """Create selection windows on all monitors"""
         self.settings_window = settings_win
         display = Gdk.Display.get_default()
@@ -844,9 +748,12 @@ class SimpleShotApp(Adw.Application):
         min_x = min(g.x for g in all_geometries) if all_geometries else 0
         min_y = min(g.y for g in all_geometries) if all_geometries else 0
         
-        for i in range(monitors.get_n_items()):
-            monitor = monitors.get_item(i)
-            win = SelectionWindow(self, self.config, self, monitor, min_x, min_y)
+        # For now, we only support the first monitor that the portal gives us
+        # A more robust solution would match the selected portal source to a Gdk.Monitor
+        if monitors.get_n_items() > 0:
+            monitor = monitors.get_item(0)
+            win = SelectionWindow(self, self.config, self, monitor, min_x, min_y, background_texture)
+            win.captured_sample = captured_sample
             win.fullscreen_on_monitor(monitor)
             win.present()
             self.selection_windows.append(win)
@@ -868,6 +775,18 @@ class SimpleShotApp(Adw.Application):
         
         if self.settings_window:
             self.settings_window.present()
+
+    def close_screencast_session(self, session_handle):
+        if not session_handle: return
+        session_proxy = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, None,
+            'org.freedesktop.portal.Desktop',
+            session_handle,
+            'org.freedesktop.portal.Session',
+            None
+        )
+        session_proxy.call('Close', GLib.Variant('()', None), Gio.DBusCallFlags.NONE, -1, None, None, None)
+        self.session_handle = None
 
 
 def main():
