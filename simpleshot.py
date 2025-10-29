@@ -460,12 +460,13 @@ class SelectionWindow(Gtk.Window):
                 uri = uri_variant.get_string().replace('file://', '')
                 
                 monitor_geometry = self.monitor.get_geometry()
+                scale = self.monitor.get_scale_factor()
                 
-                # Crop the full screenshot
-                x = int(min(self.start_x, self.end_x)) + monitor_geometry.x
-                y = int(min(self.start_y, self.end_y)) + monitor_geometry.y
-                w = int(abs(self.end_x - self.start_x))
-                h = int(abs(self.end_y - self.start_y))
+                # Crop the full screenshot using physical pixels
+                x = (int(min(self.start_x, self.end_x)) + monitor_geometry.x) * scale
+                y = (int(min(self.start_y, self.end_y)) + monitor_geometry.y) * scale
+                w = int(abs(self.end_x - self.start_x)) * scale
+                h = int(abs(self.end_y - self.start_y)) * scale
                 
                 try:
                     pixbuf = GdkPixbuf.Pixbuf.new_from_file(uri)
