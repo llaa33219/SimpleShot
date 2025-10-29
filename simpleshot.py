@@ -13,7 +13,8 @@ from pathlib import Path
 gi.require_version('Gtk', '4.0')
 gi.require_version('Gdk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Gdk, Adw, GLib, Gio, GdkPixbuf
+gi.require_version('Gst', '1.0')
+from gi.repository import Gtk, Gdk, Adw, GLib, Gio, GdkPixbuf, Gst
 
 class SimpleShotConfig:
     """Configuration manager for SimpleShot"""
@@ -200,6 +201,7 @@ class SelectionWindow(Gtk.Window):
         self.end_y = 0
         self.is_selecting = False
         self.is_recording = False
+        self.portal = None
         
         # Drawing area
         self.drawing_area = Gtk.DrawingArea()
@@ -386,112 +388,202 @@ class SelectionWindow(Gtk.Window):
         return False
     
     def take_screenshot(self):
-        """Take a screenshot of selected area using XDG Portal"""
-        x = int(min(self.start_x, self.end_x))
-        y = int(min(self.start_y, self.end_y))
-        w = int(abs(self.end_x - self.start_x))
-        h = int(abs(self.end_y - self.start_y))
-        
-        if w < 10 or h < 10:
-            return
-        
+        """Take a screenshot of selected area using XDG ScreenCast Portal"""
         self.manager.hide_all_selection_windows()
 
         try:
-            # Use XDG Screenshot Portal
-            portal = Gio.DBusProxy.new_for_bus_sync(
+            # Use XDG ScreenCast Portal
+            self.portal = Gio.DBusProxy.new_for_bus_sync(
                 Gio.BusType.SESSION,
                 Gio.DBusProxyFlags.NONE,
                 None,
                 'org.freedesktop.portal.Desktop',
                 '/org/freedesktop/portal/desktop',
-                'org.freedesktop.portal.Screenshot',
+                'org.freedesktop.portal.ScreenCast',
                 None
             )
             
             options = {
-                'interactive': GLib.Variant('b', False),
-                'modal': GLib.Variant('b', True)
+                # 'multiple': GLib.Variant('b', False),
+                'types': GLib.Variant('u', 1) # Monitor only
             }
             
-            portal.call(
-                'Screenshot',
-                GLib.Variant('(sa{sv})', ('', options)),
+            self.portal.call(
+                'CreateSession',
+                GLib.Variant('(a{sv})', (options,)),
                 Gio.DBusCallFlags.NONE,
                 -1,
                 None,
-                self.on_screenshot_finish,
+                self.on_screencast_session_created,
                 None
             )
             
         except Exception as e:
-            print(f"Error taking screenshot via portal: {e}")
+            print(f"Error creating ScreenCast session: {e}")
             self.manager.end_capture_session()
 
-    def on_screenshot_finish(self, proxy, result, user_data):
+    def on_screencast_session_created(self, proxy, result, user_data):
         try:
             res = proxy.call_finish(result)
-            if res:
-                handle = res.get_child_value(0).get_string()
-                
-                # Get request proxy and connect to Response signal
-                request_proxy = Gio.DBusProxy.new_for_bus_sync(
-                    Gio.BusType.SESSION,
-                    Gio.DBusProxyFlags.NONE,
-                    None,
-                    'org.freedesktop.portal.Desktop',
-                    handle,
-                    'org.freedesktop.portal.Request',
-                    None
-                )
-                request_proxy.connect("g-signal", self.on_portal_response)
-        except Exception as e:
-            print(f"Error processing screenshot result: {e}")
-            self.manager.end_capture_session()
+            if not res:
+                self.manager.end_capture_session()
+                return
 
-    def on_portal_response(self, proxy, sender_name, signal_name, parameters):
-        if signal_name == 'Response':
-            response = parameters.get_child_value(1)
-            uri_variant = response.lookup_value('uri')
-            if uri_variant:
-                uri = uri_variant.get_string().replace('file://', '')
-                
-                monitor_geometry = self.monitor.get_geometry()
-                scale = self.monitor.get_scale_factor()
-                
-                # Crop the full screenshot using physical pixels
-                x = (int(min(self.start_x, self.end_x)) + monitor_geometry.x - self.desktop_x_offset) * scale
-                y = (int(min(self.start_y, self.end_y)) + monitor_geometry.y - self.desktop_y_offset) * scale
-                w = int(abs(self.end_x - self.start_x)) * scale
-                h = int(abs(self.end_y - self.start_y)) * scale
-                
-                try:
-                    pixbuf = GdkPixbuf.Pixbuf.new_from_file(uri)
-                    cropped_pixbuf = pixbuf.new_subpixbuf(x, y, w, h)
-                    
-                    # Save the cropped image
-                    Path(self.config.picture_dir).mkdir(parents=True, exist_ok=True)
-                    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                    filename = f"screenshot_{timestamp}.png"
-                    save_path = os.path.join(self.config.picture_dir, filename)
-                    
-                    cropped_pixbuf.savev(save_path, "png", [], [])
-                    
-                    self.show_notification(f"Screenshot saved to {save_path}")
-                    self.copy_to_clipboard(save_path)
-                    
-                    # Clean up the original full screenshot
-                    os.remove(uri)
-                    
-                except Exception as e:
-                    print(f"Error cropping screenshot: {e}")
-                    self.show_notification("Error processing screenshot.")
-
-            else:
-                self.show_notification("Screenshot cancelled.")
+            session_handle = res.get_child_value(0).get_string()
             
+            # Connect to the Start signal
+            self.portal.connect("g-signal", self.on_screencast_signal)
+
+            options = {
+                'handle_token': GLib.Variant('s', 'simpleshot' + str(GLib.random_int())),
+            }
+
+            self.portal.call(
+                'SelectSources',
+                GLib.Variant('(oa{sv})', (session_handle, options)),
+                Gio.DBusCallFlags.NONE, -1, None,
+                self.on_screencast_sources_selected,
+                session_handle
+            )
+        except Exception as e:
+            print(f"Error in screencast session: {e}")
             self.manager.end_capture_session()
-    
+
+    def on_screencast_signal(self, proxy, sender, signal, params):
+        if signal != 'Start':
+            return
+        
+        session_handle = params.get_child_value(0).get_string()
+        streams = params.get_child_value(1).get_child_value(0)
+        node_id = streams['id'].get_uint32()
+        
+        print(f"Received Start signal! PipeWire node ID: {node_id}")
+
+        # Now we can start the GStreamer pipeline
+        self.start_gstreamer_pipeline(node_id)
+        
+        # We should also start the screencast on the portal side
+        self.portal.call(
+            'Start',
+            GLib.Variant('(oas)', (session_handle, [''])),
+            Gio.DBusCallFlags.NONE, -1, None,
+            None, None
+        )
+
+    def start_gstreamer_pipeline(self, node_id):
+        Gst.init(None)
+        
+        pipeline_str = (
+            f"pipewiresrc path={node_id} ! "
+            "videoconvert ! "
+            "appsink name=sink emit-signals=true"
+        )
+        
+        self.pipeline = Gst.parse_launch(pipeline_str)
+        appsink = self.pipeline.get_by_name("sink")
+        appsink.connect("new-sample", self.on_new_sample)
+        
+        self.pipeline.set_state(Gst.State.PLAYING)
+        print("GStreamer pipeline started.")
+
+    def on_new_sample(self, appsink):
+        print("Captured a frame from GStreamer!")
+        
+        sample = appsink.pull_sample()
+        if not sample:
+            return Gst.FlowReturn.OK
+
+        # Stop the pipeline, we only need one frame
+        self.pipeline.set_state(Gst.State.NULL)
+
+        # Process the frame
+        self.process_captured_frame(sample)
+
+        return Gst.FlowReturn.EOS
+
+    def process_captured_frame(self, sample):
+        try:
+            caps = sample.get_caps()
+            struct = caps.get_structure(0)
+            
+            width = struct.get_value("width")
+            height = struct.get_value("height")
+            
+            buf = sample.get_buffer()
+            
+            # Map buffer to memory
+            success, map_info = buf.map(Gst.MapFlags.READ)
+            if not success:
+                raise Exception("Failed to map GStreamer buffer")
+            
+            # Create Pixbuf from buffer data
+            pixbuf_full = GdkPixbuf.Pixbuf.new_from_data(
+                map_info.data, 
+                GdkPixbuf.Colorspace.RGB,
+                False, 8, width, height, 
+                struct.get_value("framerate").get_num() * width * 3 # stride
+            )
+            
+            # Unmap buffer
+            buf.unmap(map_info)
+
+            # Now, crop the pixbuf
+            scale = self.monitor.get_scale_factor()
+            x = int(min(self.start_x, self.end_x)) * scale
+            y = int(min(self.start_y, self.end_y)) * scale
+            w = int(abs(self.end_x - self.start_x)) * scale
+            h = int(abs(self.end_y - self.start_y)) * scale
+
+            cropped_pixbuf = pixbuf_full.new_subpixbuf(x, y, w, h)
+            
+            # Save the cropped image
+            Path(self.config.picture_dir).mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"screenshot_{timestamp}.png"
+            save_path = os.path.join(self.config.picture_dir, filename)
+            
+            cropped_pixbuf.savev(save_path, "png", [], [])
+            
+            self.show_notification(f"Screenshot saved to {save_path}")
+            self.copy_to_clipboard(save_path)
+            
+        except Exception as e:
+            print(f"Error processing captured frame: {e}")
+            self.show_notification("Error processing screenshot.")
+        finally:
+            self.manager.end_capture_session()
+
+
+    def on_screencast_sources_selected(self, proxy, result, session_handle):
+        # This is where we would start the stream and capture a frame.
+        # For now, let's just log and end the session.
+        try:
+            res = proxy.call_finish(result)
+            if not res:
+                self.manager.end_capture_session()
+                return
+            
+            print("Screencast sources selected, waiting for Start signal.")
+
+            # No need to close the session here anymore, it will be closed after capture
+            # self.close_screencast_session(session_handle)
+
+        except Exception as e:
+            print(f"Error selecting screencast sources: {e}")
+            self.manager.end_capture_session()
+
+    def close_screencast_session(self, session_handle):
+        # Session handle is an object path, need to close it via the request object
+        request_proxy = Gio.DBusProxy.new_for_bus_sync(
+            Gio.BusType.SESSION, Gio.DBusProxyFlags.NONE, None,
+            'org.freedesktop.portal.Desktop',
+            session_handle,
+            'org.freedesktop.portal.Request',
+            None
+        )
+        request_proxy.call('Close', GLib.Variant('()', None), Gio.DBusCallFlags.NONE, -1, None, None, None)
+        self.manager.end_capture_session()
+
     def copy_to_clipboard(self, filepath):
         """Copy image to clipboard"""
         try:
