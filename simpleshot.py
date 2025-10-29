@@ -419,7 +419,7 @@ class SelectionWindow(Gtk.Window):
             
             portal.call(
                 'Screenshot',
-                GLib.Variant('(ssa{sv})', ('', options)),
+                GLib.Variant('(sa{sv})', ('', options)),
                 Gio.DBusCallFlags.NONE,
                 -1,
                 None,
