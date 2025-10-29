@@ -769,11 +769,16 @@ class SimpleShotApp(Adw.Application):
 
     def end_capture_session(self):
         """Close all selection windows and show the main window"""
+        if self.pipeline:
+            self.pipeline.set_state(Gst.State.NULL)
+            self.pipeline = None
+
         for win in self.selection_windows:
             win.close()
         self.selection_windows = []
         
-        if self.settings_window:
+        # Ensure the main window is always shown when a session ends
+        if self.settings_window and not self.settings_window.get_visible():
             self.settings_window.present()
 
     def close_screencast_session(self, session_handle):
