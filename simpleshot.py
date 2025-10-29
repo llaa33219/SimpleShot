@@ -170,17 +170,16 @@ class SettingsWindow(Adw.ApplicationWindow):
     def on_start_capture(self, button):
         """Start the capture selection interface"""
         self.hide()
-        # Launch selection window
-        selection_win = SelectionWindow(self.get_application(), self.config)
-        selection_win.present()
+        self.get_application().start_capture_session(self)
 
 
 class SelectionWindow(Gtk.Window):
     """Fullscreen overlay for area selection"""
     
-    def __init__(self, app, config):
+    def __init__(self, app, config, manager):
         super().__init__(application=app)
         self.config = config
+        self.manager = manager
         
         # Window setup
         self.set_decorated(False)
@@ -384,7 +383,7 @@ class SelectionWindow(Gtk.Window):
         if keyval == Gdk.KEY_Escape:
             if self.is_recording:
                 self.toggle_recording()  # Stop recording
-            self.close_window()
+            self.manager.end_capture_session()
             return True
         return False
     
@@ -429,7 +428,7 @@ class SelectionWindow(Gtk.Window):
             
         except Exception as e:
             print(f"Error taking screenshot via portal: {e}")
-            self.close_window()
+            self.manager.end_capture_session()
 
     def on_screenshot_finish(self, proxy, result, user_data):
         try:
@@ -450,20 +449,47 @@ class SelectionWindow(Gtk.Window):
                 request_proxy.connect("g-signal", self.on_portal_response)
         except Exception as e:
             print(f"Error processing screenshot result: {e}")
-            self.close_window()
+            self.manager.end_capture_session()
 
     def on_portal_response(self, proxy, sender_name, signal_name, parameters):
         if signal_name == 'Response':
             response = parameters.get_child_value(1)
             uri_variant = response.lookup_value('uri')
             if uri_variant:
-                uri = uri_variant.get_string()
-                self.show_notification(f"Screenshot saved to {uri.replace('file://', '')}")
-                self.copy_to_clipboard(uri.replace('file://', ''))
+                uri = uri_variant.get_string().replace('file://', '')
+                
+                # Crop the full screenshot
+                x = int(min(self.start_x, self.end_x))
+                y = int(min(self.start_y, self.end_y))
+                w = int(abs(self.end_x - self.start_x))
+                h = int(abs(self.end_y - self.start_y))
+                
+                try:
+                    pixbuf = GdkPixbuf.Pixbuf.new_from_file(uri)
+                    cropped_pixbuf = pixbuf.new_subpixbuf(x, y, w, h)
+                    
+                    # Save the cropped image
+                    Path(self.config.picture_dir).mkdir(parents=True, exist_ok=True)
+                    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                    filename = f"screenshot_{timestamp}.png"
+                    save_path = os.path.join(self.config.picture_dir, filename)
+                    
+                    cropped_pixbuf.savev(save_path, "png", [], [])
+                    
+                    self.show_notification(f"Screenshot saved to {save_path}")
+                    self.copy_to_clipboard(save_path)
+                    
+                    # Clean up the original full screenshot
+                    os.remove(uri)
+                    
+                except Exception as e:
+                    print(f"Error cropping screenshot: {e}")
+                    self.show_notification("Error processing screenshot.")
+
             else:
                 self.show_notification("Screenshot cancelled.")
             
-            self.close_window()
+            self.manager.end_capture_session()
     
     def copy_to_clipboard(self, filepath):
         """Copy image to clipboard"""
@@ -543,14 +569,11 @@ class SelectionWindow(Gtk.Window):
                 print(f"Error stopping recording: {e}")
         
         self.is_recording = False
-        self.close_window()
+        self.manager.end_capture_session()
     
     def close_window(self):
         """Close selection window and show settings again"""
-        self.close()
-        # Reopen settings window
-        settings_win = SettingsWindow(self.get_application(), self.config)
-        settings_win.present()
+        self.manager.end_capture_session()
 
 
 class SimpleShotApp(Adw.Application):
@@ -560,11 +583,36 @@ class SimpleShotApp(Adw.Application):
         super().__init__(application_id='net.bloupla.simpleshot',
                         flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.config = SimpleShotConfig()
+        self.selection_windows = []
+        self.settings_window = None
     
     def do_activate(self):
         """Application activation"""
-        win = SettingsWindow(self, self.config)
-        win.present()
+        if not self.settings_window:
+            self.settings_window = SettingsWindow(self, self.config)
+        self.settings_window.present()
+
+    def start_capture_session(self, settings_win):
+        """Create selection windows on all monitors"""
+        self.settings_window = settings_win
+        display = Gdk.Display.get_default()
+        monitors = display.get_monitors()
+        
+        for i in range(monitors.get_n_items()):
+            monitor = monitors.get_item(i)
+            win = SelectionWindow(self, self.config, self)
+            win.fullscreen_on_monitor(monitor)
+            win.present()
+            self.selection_windows.append(win)
+
+    def end_capture_session(self):
+        """Close all selection windows and show the main window"""
+        for win in self.selection_windows:
+            win.close()
+        self.selection_windows = []
+        
+        if self.settings_window:
+            self.settings_window.present()
 
 
 def main():
