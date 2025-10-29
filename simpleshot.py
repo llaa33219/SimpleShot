@@ -192,8 +192,6 @@ class SelectionWindow(Gtk.Window):
         monitor = display.get_monitor_at_surface(pointer.get_surface_at_position()[0])
         self.fullscreen_on_monitor(monitor)
 
-        self.set_visual(display.get_rgba_visual())
-
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(b"window { background-color: transparent; }")
         Gtk.StyleContext.add_provider_for_display(display, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
