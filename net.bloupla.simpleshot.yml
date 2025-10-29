@@ -30,6 +30,21 @@ modules:
         url: https://chromium.googlesource.com/webm/libvpx
         tag: v1.13.1
         commit: 17469f4935414652c71a36410486b3d441865e9d
+  
+  # GStreamer plugins for PipeWire support
+  - name: gst-plugins-base
+    buildsystem: meson
+    sources:
+      - type: git
+        url: https://gitlab.freedesktop.org/gstreamer/gst-plugins-base.git
+        tag: 1.24.0
+  
+  - name: gst-plugins-good
+    buildsystem: meson
+    sources:
+      - type: git
+        url: https://gitlab.freedesktop.org/gstreamer/gst-plugins-good.git
+        tag: 1.24.0
         
   - name: ffmpeg
     buildsystem: autotools
@@ -41,11 +56,11 @@ modules:
       - --enable-gpl
       - --enable-version3
       - --enable-libvpx
-      - --enable-x11grab
+      - --enable-libpipewire
     sources:
       - type: archive
-        url: https://ffmpeg.org/releases/ffmpeg-4.4.4.tar.bz2
-        sha256: 224708233f24522851a0b5263613e5170d181f7e49b8f280a550474668f237f3
+        url: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+        sha256: 8684f4b00f94b85461884c3719382f1261f0d9eb3d59640a1f4ac0873616f968
 
   - name: simpleshot
     buildsystem: simple
