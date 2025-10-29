@@ -176,21 +176,18 @@ class SettingsWindow(Adw.ApplicationWindow):
 class SelectionWindow(Gtk.Window):
     """Fullscreen overlay for area selection"""
     
-    def __init__(self, app, config, manager, monitor):
+    def __init__(self, app, config, manager, monitor, desktop_x_offset=0, desktop_y_offset=0):
         super().__init__(application=app)
         self.config = config
         self.manager = manager
         self.monitor = monitor
+        self.desktop_x_offset = desktop_x_offset
+        self.desktop_y_offset = desktop_y_offset
         
         # Window setup
         self.set_decorated(False)
         
         display = Gdk.Display.get_default()
-        seat = display.get_default_seat()
-        pointer = seat.get_pointer()
-        
-        monitor = display.get_monitor_at_surface(pointer.get_surface_at_position()[0])
-        self.fullscreen_on_monitor(monitor)
 
         css_provider = Gtk.CssProvider()
         css_provider.load_from_data(b"window { background-color: transparent; }")
@@ -463,8 +460,8 @@ class SelectionWindow(Gtk.Window):
                 scale = self.monitor.get_scale_factor()
                 
                 # Crop the full screenshot using physical pixels
-                x = (int(min(self.start_x, self.end_x)) + monitor_geometry.x) * scale
-                y = (int(min(self.start_y, self.end_y)) + monitor_geometry.y) * scale
+                x = (int(min(self.start_x, self.end_x)) + monitor_geometry.x - self.desktop_x_offset) * scale
+                y = (int(min(self.start_y, self.end_y)) + monitor_geometry.y - self.desktop_y_offset) * scale
                 w = int(abs(self.end_x - self.start_x)) * scale
                 h = int(abs(self.end_y - self.start_y)) * scale
                 
@@ -604,9 +601,18 @@ class SimpleShotApp(Adw.Application):
         display = Gdk.Display.get_default()
         monitors = display.get_monitors()
         
+        # Calculate the bounding box of all monitors to find top-left origin
+        all_geometries = []
         for i in range(monitors.get_n_items()):
             monitor = monitors.get_item(i)
-            win = SelectionWindow(self, self.config, self, monitor)
+            all_geometries.append(monitor.get_geometry())
+        
+        min_x = min(g.x for g in all_geometries) if all_geometries else 0
+        min_y = min(g.y for g in all_geometries) if all_geometries else 0
+        
+        for i in range(monitors.get_n_items()):
+            monitor = monitors.get_item(i)
+            win = SelectionWindow(self, self.config, self, monitor, min_x, min_y)
             win.fullscreen_on_monitor(monitor)
             win.present()
             self.selection_windows.append(win)
