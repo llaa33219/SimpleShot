@@ -25,6 +25,7 @@ class SimpleShotConfig:
         
         # Default save locations
         self.picture_dir = str(Path.home() / 'Pictures' / 'Screenshots')
+        self.video_dir = str(Path.home() / 'Videos' / 'Recordings')
         
         self.load_config()
     
@@ -37,6 +38,8 @@ class SimpleShotConfig:
                         key, value = line.strip().split('=', 1)
                         if key == 'picture_dir':
                             self.picture_dir = value
+                        elif key == 'video_dir':
+                            self.video_dir = value
             except Exception as e:
                 print(f"Error loading config: {e}")
     
@@ -45,6 +48,7 @@ class SimpleShotConfig:
         try:
             with open(self.config_file, 'w') as f:
                 f.write(f"picture_dir={self.picture_dir}\n")
+                f.write(f"video_dir={self.video_dir}\n")
         except Exception as e:
             print(f"Error saving config: {e}")
 
@@ -96,6 +100,17 @@ class SettingsWindow(Adw.ApplicationWindow):
         settings_group.add(picture_row)
         self.picture_row = picture_row
         
+        # Video directory row
+        video_row = Adw.ActionRow()
+        video_row.set_title("Recordings Location")
+        video_row.set_subtitle(self.config.video_dir)
+        video_button = Gtk.Button(label="Choose")
+        video_button.set_valign(Gtk.Align.CENTER)
+        video_button.connect("clicked", self.on_choose_video_dir)
+        video_row.add_suffix(video_button)
+        settings_group.add(video_row)
+        self.video_row = video_row
+        
         content_box.append(settings_group)
         
         # Start button
@@ -134,6 +149,24 @@ class SettingsWindow(Adw.ApplicationWindow):
         except Exception as e:
             print(f"Error selecting folder: {e}")
     
+    def on_choose_video_dir(self, button):
+        """Open directory chooser for videos"""
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Choose Recordings Location")
+        dialog.select_folder(None, None, self.on_video_dir_selected)
+    
+    def on_video_dir_selected(self, dialog, result):
+        """Handle video directory selection"""
+        try:
+            folder = dialog.select_folder_finish(result)
+            if folder:
+                path = folder.get_path()
+                self.config.video_dir = path
+                self.video_row.set_subtitle(path)
+                self.config.save_config()
+        except Exception as e:
+            print(f"Error selecting folder: {e}")
+    
     def on_start_capture(self, button):
         """Start the capture selection interface"""
         self.hide()
@@ -156,7 +189,7 @@ class SelectionWindow(Gtk.Window):
         seat = display.get_default_seat()
         pointer = seat.get_pointer()
         
-        monitor = display.get_monitor_at_surface(pointer.get_surface_at_position()[1])
+        monitor = display.get_monitor_at_surface(pointer.get_surface_at_position()[0])
         self.fullscreen_on_monitor(monitor)
 
         self.set_visual(display.get_rgba_visual())
@@ -219,8 +252,12 @@ class SelectionWindow(Gtk.Window):
             
             # Draw border
             cr.set_operator(2)  # OPERATOR_OVER
-            cr.set_source_rgb(0.3, 0.6, 1)  # Blue
-            cr.set_line_width(2)
+            if self.is_recording:
+                cr.set_source_rgb(1, 0, 0)  # Red for recording
+                cr.set_line_width(4)
+            else:
+                cr.set_source_rgb(0.3, 0.6, 1)  # Blue
+                cr.set_line_width(2)
             cr.rectangle(x, y, w, h)
             cr.stroke()
             
@@ -231,7 +268,7 @@ class SelectionWindow(Gtk.Window):
     def draw_menu(self, cr, screen_w, screen_h, sel_x, sel_y, sel_w, sel_h):
         """Draw the action menu"""
         # Menu dimensions
-        menu_width = 80
+        menu_width = 200
         menu_height = 60
         menu_x = sel_x + (sel_w / 2) - (menu_width / 2)
         menu_y = sel_y + sel_h + 20
@@ -253,10 +290,11 @@ class SelectionWindow(Gtk.Window):
         
         # Buttons
         button_size = 40
+        spacing = 20
         
         # Capture button (camera icon)
-        capture_x = menu_x + (menu_width - button_size) / 2
-        capture_y = menu_y + (menu_height - button_size) / 2
+        capture_x = menu_x + 40
+        capture_y = menu_y + 10
         cr.set_source_rgb(0.3, 0.6, 1)
         cr.arc(capture_x + button_size/2, capture_y + button_size/2, button_size/2, 0, 2 * 3.14159)
         cr.fill()
@@ -266,8 +304,29 @@ class SelectionWindow(Gtk.Window):
         cr.arc(capture_x + button_size/2, capture_y + button_size/2, 10, 0, 2 * 3.14159)
         cr.fill()
         
+        # Record button (red dot icon)
+        record_x = menu_x + 40 + button_size + spacing
+        record_y = menu_y + 10
+        if self.is_recording:
+            cr.set_source_rgb(0.5, 0.5, 0.5)  # Gray when recording
+        else:
+            cr.set_source_rgb(1, 0.2, 0.2)  # Red
+        cr.arc(record_x + button_size/2, record_y + button_size/2, button_size/2, 0, 2 * 3.14159)
+        cr.fill()
+        
+        # Record icon
+        cr.set_source_rgb(1, 1, 1)
+        if self.is_recording:
+            # Stop square
+            cr.rectangle(record_x + button_size/2 - 8, record_y + button_size/2 - 8, 16, 16)
+        else:
+            # Record circle
+            cr.arc(record_x + button_size/2, record_y + button_size/2, 10, 0, 2 * 3.14159)
+        cr.fill()
+        
         # Store button positions for click detection
         self.capture_button = (capture_x, capture_y, button_size, button_size)
+        self.record_button = (record_x, record_y, button_size, button_size)
     
     def draw_rounded_rect(self, cr, x, y, width, height, radius):
         """Draw a rounded rectangle"""
@@ -285,6 +344,12 @@ class SelectionWindow(Gtk.Window):
                 bx, by, bw, bh = self.capture_button
                 if bx <= x <= bx + bw and by <= y <= by + bh:
                     self.take_screenshot()
+                    return
+            
+            if hasattr(self, 'record_button'):
+                bx, by, bw, bh = self.record_button
+                if bx <= x <= bx + bw and by <= y <= by + bh:
+                    self.toggle_recording()
                     return
             
             # Reset selection
@@ -319,6 +384,8 @@ class SelectionWindow(Gtk.Window):
     def on_key_press(self, controller, keyval, keycode, state):
         """Handle keyboard events"""
         if keyval == Gdk.KEY_Escape:
+            if self.is_recording:
+                self.toggle_recording()  # Stop recording
             self.close_window()
             return True
         return False
@@ -415,6 +482,70 @@ class SelectionWindow(Gtk.Window):
         notification = Gio.Notification.new("SimpleShot")
         notification.set_body(message)
         self.get_application().send_notification(None, notification)
+    
+    def toggle_recording(self):
+        """Toggle screen recording"""
+        if self.is_recording:
+            # Stop recording
+            self.stop_recording()
+        else:
+            # Start recording
+            self.start_recording()
+    
+    def start_recording(self):
+        """Start screen recording using bundled ffmpeg"""
+        x = int(min(self.start_x, self.end_x))
+        y = int(min(self.start_y, self.end_y))
+        w = int(abs(self.end_x - self.start_x))
+        h = int(abs(self.end_y - self.start_y))
+        
+        if w < 10 or h < 10:
+            return
+        
+        try:
+            # Create output directory
+            Path(self.config.video_dir).mkdir(parents=True, exist_ok=True)
+            
+            # Generate filename
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            filename = f"recording_{timestamp}.webm"
+            self.recording_filepath = os.path.join(self.config.video_dir, filename)
+            
+            # Use ffmpeg for X11
+            import subprocess
+            display = os.environ.get('DISPLAY', ':0')
+            self.recording_process = subprocess.Popen([
+                'ffmpeg',
+                '-f', 'x11grab',
+                '-s', f"{w}x{h}",
+                '-i', f"{display}+{x},{y}",
+                '-codec:v', 'libvpx',
+                self.recording_filepath
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            
+            self.is_recording = True
+            self.drawing_area.queue_draw()
+            print(f"Recording started: {self.recording_filepath}")
+            
+        except FileNotFoundError:
+            print("ffmpeg not found. Make sure it is bundled with the Flatpak.")
+            self.show_notification("Error: ffmpeg not found.")
+        except Exception as e:
+            print(f"Error starting recording: {e}")
+
+    def stop_recording(self):
+        """Stop screen recording"""
+        if hasattr(self, 'recording_process') and self.recording_process:
+            try:
+                self.recording_process.terminate()
+                self.recording_process.wait(timeout=5)
+                print(f"Recording saved to: {self.recording_filepath}")
+                self.show_notification(f"Recording saved")
+            except Exception as e:
+                print(f"Error stopping recording: {e}")
+        
+        self.is_recording = False
+        self.close_window()
     
     def close_window(self):
         """Close selection window and show settings again"""

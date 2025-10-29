@@ -18,6 +18,35 @@ finish-args:
   - --filesystem=xdg-videos:create
 
 modules:
+  - name: yasm
+    sources:
+      - type: archive
+        url: https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
+        sha256: 3dce6601b495f5b3d455721e8983833f0e347397128253a4cca4c8973b116b34
+
+  - name: libvpx
+    sources:
+      - type: git
+        url: https://chromium.googlesource.com/webm/libvpx
+        tag: v1.13.1
+        commit: 17469f4935414652c71a36410486b3d441865e9d
+        
+  - name: ffmpeg
+    buildsystem: autotools
+    config-opts:
+      - --enable-shared
+      - --disable-static
+      - --disable-doc
+      - --disable-debug
+      - --enable-gpl
+      - --enable-version3
+      - --enable-libvpx
+      - --enable-x11grab
+    sources:
+      - type: archive
+        url: https://ffmpeg.org/releases/ffmpeg-4.4.4.tar.bz2
+        sha256: 224708233f24522851a0b5263613e5170d181f7e49b8f280a550474668f237f3
+
   - name: simpleshot
     buildsystem: simple
     build-commands:
